@@ -1,0 +1,134 @@
+---
+title: "Final Assignment"
+author: "Stuart T."
+date: "2024-08-03"
+output: pdf_document
+---
+# Final Project
+## Description
+This is the final assignment for the course. The instructions were to make 2 visualizations and 1 model based on the JHU data from class. 
+
+```{r setup, include=FALSE, message=FALSE, echo = FALSE}
+#part of Rmd basic template. Not my code. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+``` {r head, echo = TRUE, message = FALSE}
+
+
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(wordcloud)
+
+url <- 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv'
+
+covid.data <- read_csv(url)
+
+#renaming the country column so I can summarize it later. 
+#There is no need to name other columns at this time
+covid.data <- covid.data %>%
+  rename(
+    "country_region" = "Country/Region"
+  )
+
+```
+
+## Summary Data
+As always, it is a good first step to look at a data summary and maybe the first few rows of the dataset. It is muted here since there are so many columns:
+
+```{r summary,  echo = TRUE, warning = FALSE, results = "hide"}
+
+summary(covid.data)
+head(covid.data)
+```
+
+## Some visualizations and a Model
+
+Two visualizations were done. First, there is a word cloud for total case counts. As there is a lot of data and 200+ countries in the dataset, a word cloud seemed like a good choice for a visualization to get an idea of the scope of cases for some countries. Next, there was a plot of the top ten countries and their accumulated total counts over time, for a selected timeframe. From the jumps in the data, one can see when various waves of the virus and its sub-variants were actively spreading the fastest. For ease of reading, regions were left out (i.e. US and Mexican states), so that all national count data was summed up by country. 
+Finally there is a model. This is an intentionally silly model to show how data can show relationships that might not really be there. The model took the English-language length of each country name as the predictor variable, and the total case count as the response. Noteably, this is a dataset from a US-based university. The name "US" indicating the United States was the shortest length name and also the highest count. Had this name changed to the full "United States of America," that might have removed the negative correlation entirely. 
+
+```{r main, include = TRUE, warning=FALSE}
+
+#Visual # 1 - a Word CLoud
+##########################
+
+#pivot data - combine all regions of a single country
+#pivot in R by:
+covid.data.pivot <- covid.data %>%
+    group_by(country_region) %>%
+    summarize(
+      across(where(is.numeric), sum, na.rm = TRUE) 
+    )
+
+
+#visualize - total cases by country
+#cases.total <- rowSums(covid.data.pivot[ ,4:ncol(covid.data.pivot)])
+#the above did not work - after some searching, this is a cumulative sum, 
+#meaning the total is simply the last column
+cases.total <-  covid.data.pivot[ , 1146]
+countries <- covid.data.pivot[ ,1 ]
+cases_by_country <- data.frame(
+ country = countries, 
+ cases = cases.total
+)
+colnames(cases_by_country) <- c("country", "total")
+
+#putting data in named vector form to pass to the word cloud
+vectorized.data <- setNames(cases_by_country$total, cases_by_country$country)
+wordcloud(words = names(vectorized.data), 
+          freq = vectorized.data)
+
+
+#head(covid.data)
+
+#Visual # 2 - a line chart
+##########################
+
+
+#from the word cloud we see what some of the larger countries are in terms 
+#of infections. Therefore, we select several of these and compare them over time
+high.infection.countries <- covid.data.pivot[order(-covid.data.pivot[[ncol(covid.data.pivot)]]), ]
+
+#clipping off the top 10
+high.infection.countries <- high.infection.countries[1:10, ]
+#plot(high.infection.countries)
+#there is too much data to just plot(data) with, so I will select just 
+#a few hundred days of data, somewhere around the middle
+matplot(t(high.infection.countries[, 400:1100]), type = "l", 
+        main = "Cumulative Infections by Country", 
+        xlab = "selected_days 2021 +",
+        ylab = "country")
+legend("topright", legend = high.infection.countries$country_region, col = 1:nrow(high.infection.countries), 
+       lty = 1, cex = .5)
+        
+#the Model of name length data 
+##############################
+
+#model - silly one - length of country name affecting number of cases
+name.length.effect <- data.frame(
+  country = covid.data.pivot$country_region, 
+  namelen = nchar(covid.data.pivot$country_region), 
+  total = covid.data.pivot[, 1146]
+)
+colnames(name.length.effect) = c("country", "name_len", "total")
+
+
+model <- lm(name.length.effect$total ~ name.length.effect$name_len, data = name.length.effect)
+summary(model)
+
+plot(name.length.effect$name_len, name.length.effect$total, 
+     main = "Fitted Model - Did characters influence cases?",
+     xlab = "length of the country name (in English)", 
+     ylab = "total cases")
+abline(model, col = "red")
+#interestingly, there is a weak correlation when looking at the summary. 
+#The F statistic for the full model suggests that the length of 
+#a country's name (in English) does actually affect the total case count.
+#This is probably a spurious correlation, but is interesting nonetheless. 
+
+
+```
+
+## Plagiarism and originality statement: 
+This is solely the work of the author. Some documentation and internet search (google, chat tools) were consulted with specific syntax for some of the functions. However, the visualization and modeling ideas, workflow, sorting, data exploration, renaming, word cloud, fitted model, and the intentional fitting of an unrealistic model (name length --> covid 19 total cases) were all original ideas by the author. The class instructor allows for their work to be duplicated per the assignment description, however this was not done. The dataset is courtesy of John's Hopkins and was pulled from 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv'. 
